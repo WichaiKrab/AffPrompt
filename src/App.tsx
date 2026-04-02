@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Image as ImageIcon, Video, Upload, ChevronRight, MessageSquare, CheckCircle, RefreshCcw, Loader2, Sparkles, LayoutPanelLeft, Copy, Check, History, X, Download, Trash2 } from 'lucide-react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from './firebase';
 import { Toaster, toast } from 'react-hot-toast';
 
 interface PromptResult {
@@ -56,14 +54,21 @@ export default function App() {
   }>({});
 
   useEffect(() => {
-    const savedHistory = localStorage.getItem('promptHistory');
-    if (savedHistory) {
+    const fetchHistory = async () => {
       try {
-        setHistory(JSON.parse(savedHistory));
+        const response = await fetch('/api/history');
+        if (response.ok) {
+          const data = await response.json();
+          setHistory(data);
+        }
       } catch (e) {
-        console.error("Failed to parse history", e);
+        console.error("Failed to fetch history", e);
+        // Fallback to local storage if API fails
+        const savedHistory = localStorage.getItem('promptHistory');
+        if (savedHistory) setHistory(JSON.parse(savedHistory));
       }
-    }
+    };
+    fetchHistory();
   }, []);
 
   const categories = [
@@ -95,15 +100,24 @@ export default function App() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const uploadToast = toast.loading("กำลังอัปโหลดรูปภาพ...");
       try {
-        const storageRef = ref(storage, `images/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-        setFormData({ ...formData, faceImage: downloadURL });
-        toast.success("อัปโหลดรูปภาพสำเร็จ");
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', file);
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formDataUpload,
+        });
+
+        if (!response.ok) throw new Error("Upload failed");
+
+        const data = await response.json();
+        setFormData({ ...formData, faceImage: data.url });
+        toast.success("อัปโหลดรูปภาพสำเร็จ", { id: uploadToast });
       } catch (error) {
         console.error("Error uploading image:", error);
-        toast.error("เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
+        toast.error("เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ", { id: uploadToast });
       }
     }
   };
@@ -132,16 +146,38 @@ export default function App() {
       setGeneratedMedia({});
       toast.success("สร้าง Prompt สำเร็จ!");
       
-      // Save to history
-      const historyItem = {
-        id: Date.now(),
-        date: new Date().toLocaleString(),
-        formData,
-        results: posesWithAR
-      };
-      const newHistory = [historyItem, ...history];
-      setHistory(newHistory);
-      localStorage.setItem('promptHistory', JSON.stringify(newHistory));
+      // Save to history via API
+      try {
+        const historyResponse = await fetch('/api/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ formData, results: posesWithAR })
+        });
+        
+        if (historyResponse.ok) {
+          const historyItem = await historyResponse.json();
+          const newHistory = [{
+            id: historyItem.id,
+            date: historyItem.date,
+            formData,
+            results: posesWithAR
+          }, ...history];
+          setHistory(newHistory);
+          localStorage.setItem('promptHistory', JSON.stringify(newHistory));
+        }
+      } catch (e) {
+        console.error("Failed to save history to DB", e);
+        // Fallback to local storage only
+        const historyItem = {
+          id: Date.now(),
+          date: new Date().toLocaleString(),
+          formData,
+          results: posesWithAR
+        };
+        const newHistory = [historyItem, ...history];
+        setHistory(newHistory);
+        localStorage.setItem('promptHistory', JSON.stringify(newHistory));
+      }
 
       setStep(3);
       setActiveTab(0);
@@ -225,11 +261,17 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const handleDeleteHistory = (id: number) => {
-    const newHistory = history.filter(item => item.id !== id);
-    setHistory(newHistory);
-    localStorage.setItem('promptHistory', JSON.stringify(newHistory));
-    toast.success("ลบประวัติสำเร็จ");
+  const handleDeleteHistory = async (id: number) => {
+    try {
+      await fetch(`/api/history/${id}`, { method: 'DELETE' });
+      const newHistory = history.filter(item => item.id !== id);
+      setHistory(newHistory);
+      localStorage.setItem('promptHistory', JSON.stringify(newHistory));
+      toast.success("ลบประวัติสำเร็จ");
+    } catch (e) {
+      console.error("Failed to delete history", e);
+      toast.error("ไม่สามารถลบประวัติจากฐานข้อมูลได้");
+    }
   };
 
   const isStep1Valid = formData.category && formData.productDetail && (formData.category !== 'อื่นๆ (ระบุเอง)' || formData.customCategory.trim() !== '');
