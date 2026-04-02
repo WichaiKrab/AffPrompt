@@ -351,9 +351,6 @@ export default function App() {
         
         {/* Header */}
         <header className="mb-8 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold mb-4">
-            <Sparkles className="w-3 h-3" /> ขับเคลื่อนโดย Gemini AI Pro
-          </div>
           <h1 className="text-3xl font-bold text-slate-800 flex items-center justify-center gap-2 mb-2">
             Affiliate Prompt Generator Pro
           </h1>

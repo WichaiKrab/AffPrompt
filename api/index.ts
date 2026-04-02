@@ -12,6 +12,10 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Initialize Database Table if it doesn't exist
 async function initDb() {
+  if (!process.env.POSTGRES_URL) {
+    console.warn("POSTGRES_URL is not set. Database features will be disabled.");
+    return;
+  }
   try {
     await sql`
       CREATE TABLE IF NOT EXISTS prompt_history (
@@ -23,6 +27,7 @@ async function initDb() {
         results JSONB
       );
     `;
+    console.log("Database initialized successfully.");
   } catch (error) {
     console.error("Failed to initialize database:", error);
   }
@@ -34,7 +39,9 @@ function getRandomApiKey() {
   const keysString = process.env.GEMINI_API_KEY || "";
   const keys = keysString.split(',').map(k => k.trim()).filter(k => k.length > 0);
   if (keys.length === 0) {
-    throw new Error("GEMINI_API_KEY is not set");
+    // In AI Studio, sometimes the key is injected but might not be in the comma-separated format we expect
+    if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+    throw new Error("GEMINI_API_KEY is not set in environment variables.");
   }
   return keys[Math.floor(Math.random() * keys.length)];
 }
@@ -107,10 +114,13 @@ app.delete("/api/history/:id", async (req, res) => {
 
 app.post("/api/generate-prompts", async (req, res) => {
   try {
-    const { category, customCategory, productDetail, style, setting, vibe, negativePrompt, hasFaceImage, aspectRatio } = req.body;
+    const { category, customCategory, productDetail, style, setting, vibe, negativePrompt, faceImage, aspectRatio } = req.body;
     
+    const hasFaceImage = !!faceImage;
     const actualCategory = category === 'อื่นๆ (ระบุเอง)' ? customCategory : category;
     
+    console.log("Generating prompts for:", { actualCategory, productDetail, style, hasFaceImage });
+
     const promptText = `
     You are an expert prompt engineer for AI image and video generation (like Midjourney, Runway, etc.).
     I need 5 different creative poses and camera angles for a product showcase.
@@ -138,7 +148,8 @@ app.post("/api/generate-prompts", async (req, res) => {
     Return the result as a JSON array of objects.
     `;
 
-    const ai = new GoogleGenAI({ apiKey: getRandomApiKey() });
+    const apiKey = getRandomApiKey();
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: "gemini-3.1-pro-preview",
       contents: promptText,
@@ -161,10 +172,18 @@ app.post("/api/generate-prompts", async (req, res) => {
     });
 
     if (!response.text) {
-      throw new Error("No response text");
+      throw new Error("No response text from AI");
     }
 
-    const generatedPoses = JSON.parse(response.text);
+    let responseText = response.text.trim();
+    // Clean markdown if present
+    if (responseText.startsWith('```json')) {
+      responseText = responseText.replace(/^```json/, '').replace(/```$/, '').trim();
+    } else if (responseText.startsWith('```')) {
+      responseText = responseText.replace(/^```/, '').replace(/```$/, '').trim();
+    }
+
+    const generatedPoses = JSON.parse(responseText);
     
     const posesWithAR = generatedPoses.map((pose: any) => ({
       ...pose,
@@ -174,7 +193,10 @@ app.post("/api/generate-prompts", async (req, res) => {
     res.json(posesWithAR);
   } catch (error: any) {
     console.error("Error generating prompts:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ 
+      error: error.message || "Internal server error",
+      details: error.stack
+    });
   }
 });
 
