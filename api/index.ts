@@ -82,30 +82,60 @@ app.post("/api/generate-prompts", async (req, res) => {
     Return the result as a JSON array of objects.
     `;
 
-    const apiKey = getRandomApiKey();
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: promptText,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              description: { type: Type.STRING },
-              imagePrompt: { type: Type.STRING },
-              videoPrompt: { type: Type.STRING }
-            },
-            required: ["name", "description", "imagePrompt", "videoPrompt"]
+    // Implement retry with exponential backoff for 503 errors
+    let response;
+    let retries = 0;
+    const maxRetries = 5;
+    
+    while (retries <= maxRetries) {
+      const apiKey = getRandomApiKey();
+      const ai = new GoogleGenAI({ apiKey });
+      
+      try {
+        response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: promptText,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  imagePrompt: { type: Type.STRING },
+                  videoPrompt: { type: Type.STRING }
+                },
+                required: ["name", "description", "imagePrompt", "videoPrompt"]
+              }
+            }
           }
+        });
+        break; // Success, exit loop
+      } catch (error: any) {
+        const errorMessage = error.message || String(error);
+        const isRetryable = errorMessage.includes('503') || 
+                            errorMessage.includes('504') ||
+                            errorMessage.includes('429') ||
+                            errorMessage.includes('high demand') || 
+                            errorMessage.includes('UNAVAILABLE') ||
+                            errorMessage.includes('RESOURCE_EXHAUSTED');
+                            
+        if (isRetryable && retries < maxRetries) {
+          retries++;
+          // Exponential backoff: 2s, 4s, 8s, 16s, 32s
+          const delay = Math.pow(2, retries) * 1000;
+          console.log(`Gemini API busy or rate limited, retrying in ${delay}ms... (Attempt ${retries}/${maxRetries})`);
+          console.log(`Error was: ${errorMessage.substring(0, 100)}...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
+        throw error; // Not retryable or max retries reached
       }
-    });
+    }
 
-    if (!response.text) {
+    if (!response || !response.text) {
       throw new Error("No response text from AI");
     }
 
