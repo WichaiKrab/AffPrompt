@@ -1,7 +1,6 @@
 import express from "express";
 import { GoogleGenAI, Type } from "@google/genai";
 import { put } from "@vercel/blob";
-import { sql } from "@vercel/postgres";
 import multer from "multer";
 
 const app = express();
@@ -10,44 +9,25 @@ app.use(express.json({ limit: '50mb' }));
 // Configure multer for memory storage
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Initialize Database Table if it doesn't exist
-async function initDb() {
-  if (!process.env.POSTGRES_URL) {
-    console.warn("POSTGRES_URL is not set. Database features will be disabled.");
-    return;
-  }
-  try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS prompt_history (
-        id SERIAL PRIMARY KEY,
-        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        category TEXT,
-        product_detail TEXT,
-        form_data JSONB,
-        results JSONB
-      );
-    `;
-    console.log("Database initialized successfully.");
-  } catch (error) {
-    console.error("Failed to initialize database:", error);
-  }
-}
-initDb();
-
 // Helper function to get a random API key from a comma-separated list
 function getRandomApiKey() {
-  const keysString = process.env.GEMINI_API_KEY || "";
+  let keysString = process.env.GEMINI_API_KEY || "";
+  // Remove any accidental quotes
+  keysString = keysString.replace(/['"]/g, '');
+  
+  console.log("API Key check - length:", keysString.length, "starts with:", keysString.substring(0, 4));
+  
   const keys = keysString.split(',').map(k => k.trim()).filter(k => k.length > 0);
   if (keys.length === 0) {
     // In AI Studio, sometimes the key is injected but might not be in the comma-separated format we expect
-    if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
-    throw new Error("GEMINI_API_KEY is not set in environment variables.");
+    if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY.replace(/['"]/g, '');
+    throw new Error("GEMINI_API_KEY is not set in environment variables. Please check your Vercel settings.");
   }
   return keys[Math.floor(Math.random() * keys.length)];
 }
 
 // Vercel Blob Upload Endpoint
-app.post("/api/upload", upload.single('file'), async (req, res) => {
+app.post("/api/upload", upload.single('file'), async (req: any, res: any) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -62,53 +42,6 @@ app.post("/api/upload", upload.single('file'), async (req, res) => {
   } catch (error: any) {
     console.error("Upload error:", error);
     res.status(500).json({ error: error.message || "Upload failed" });
-  }
-});
-
-// History Endpoints
-app.get("/api/history", async (req, res) => {
-  try {
-    const { rows } = await sql`SELECT * FROM prompt_history ORDER BY date DESC LIMIT 50`;
-    // Map database rows to the format expected by the frontend
-    const history = rows.map(row => ({
-      id: row.id,
-      date: new Date(row.date).toLocaleString(),
-      formData: row.form_data,
-      results: row.results
-    }));
-    res.json(history);
-  } catch (error: any) {
-    console.error("Fetch history error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/history", async (req, res) => {
-  try {
-    const { formData, results } = req.body;
-    const category = formData.category === 'อื่นๆ (ระบุเอง)' ? formData.customCategory : formData.category;
-    
-    const { rows } = await sql`
-      INSERT INTO prompt_history (category, product_detail, form_data, results)
-      VALUES (${category}, ${formData.productDetail}, ${JSON.stringify(formData)}, ${JSON.stringify(results)})
-      RETURNING id, date;
-    `;
-    
-    res.json({ id: rows[0].id, date: new Date(rows[0].date).toLocaleString() });
-  } catch (error: any) {
-    console.error("Save history error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.delete("/api/history/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    await sql`DELETE FROM prompt_history WHERE id = ${id}`;
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error("Delete history error:", error);
-    res.status(500).json({ error: error.message });
   }
 });
 

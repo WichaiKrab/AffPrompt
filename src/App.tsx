@@ -54,21 +54,8 @@ export default function App() {
   }>({});
 
   useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const response = await fetch('/api/history');
-        if (response.ok) {
-          const data = await response.json();
-          setHistory(data);
-        }
-      } catch (e) {
-        console.error("Failed to fetch history", e);
-        // Fallback to local storage if API fails
-        const savedHistory = localStorage.getItem('promptHistory');
-        if (savedHistory) setHistory(JSON.parse(savedHistory));
-      }
-    };
-    fetchHistory();
+    // History is now only kept in memory (state) and resets on refresh.
+    // No longer fetching from API or localStorage.
   }, []);
 
   const categories = [
@@ -137,7 +124,9 @@ export default function App() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to generate prompts");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Backend error details:", errorData);
+        throw new Error(errorData.error || "Failed to generate prompts");
       }
 
       const posesWithAR = await response.json();
@@ -146,38 +135,14 @@ export default function App() {
       setGeneratedMedia({});
       toast.success("สร้าง Prompt สำเร็จ!");
       
-      // Save to history via API
-      try {
-        const historyResponse = await fetch('/api/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ formData, results: posesWithAR })
-        });
-        
-        if (historyResponse.ok) {
-          const historyItem = await historyResponse.json();
-          const newHistory = [{
-            id: historyItem.id,
-            date: historyItem.date,
-            formData,
-            results: posesWithAR
-          }, ...history];
-          setHistory(newHistory);
-          localStorage.setItem('promptHistory', JSON.stringify(newHistory));
-        }
-      } catch (e) {
-        console.error("Failed to save history to DB", e);
-        // Fallback to local storage only
-        const historyItem = {
-          id: Date.now(),
-          date: new Date().toLocaleString(),
-          formData,
-          results: posesWithAR
-        };
-        const newHistory = [historyItem, ...history];
-        setHistory(newHistory);
-        localStorage.setItem('promptHistory', JSON.stringify(newHistory));
-      }
+      // Save to history in memory only
+      const historyItem = {
+        id: Date.now(),
+        date: new Date().toLocaleString(),
+        formData,
+        results: posesWithAR
+      };
+      setHistory([historyItem, ...history]);
 
       setStep(3);
       setActiveTab(0);
@@ -261,17 +226,10 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const handleDeleteHistory = async (id: number) => {
-    try {
-      await fetch(`/api/history/${id}`, { method: 'DELETE' });
-      const newHistory = history.filter(item => item.id !== id);
-      setHistory(newHistory);
-      localStorage.setItem('promptHistory', JSON.stringify(newHistory));
-      toast.success("ลบประวัติสำเร็จ");
-    } catch (e) {
-      console.error("Failed to delete history", e);
-      toast.error("ไม่สามารถลบประวัติจากฐานข้อมูลได้");
-    }
+  const handleDeleteHistory = (id: number) => {
+    const newHistory = history.filter(item => item.id !== id);
+    setHistory(newHistory);
+    toast.success("ลบประวัติสำเร็จ");
   };
 
   const isStep1Valid = formData.category && formData.productDetail && (formData.category !== 'อื่นๆ (ระบุเอง)' || formData.customCategory.trim() !== '');
