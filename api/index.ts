@@ -71,6 +71,7 @@ app.post("/api/generate-prompts", async (req, res) => {
     - Keep the 'name' and 'description' in Thai.
     - Include the requested Style in the prompts.
     - If Negative Prompt is provided, incorporate it appropriately or note it.
+    - **CONSISTENCY IS KEY**: First, define a detailed physical description for the **Product** and the **Character/Model** (their appearance, clothing, specific features). Then, **REUSE THIS EXACT DESCRIPTION** in every single one of the 5 variations. Only change the pose, action, and camera angle. This is crucial so that the generated images look like the same product and person in different shots.
     
     Generate 5 unique variations. For each variation, provide:
     1. name: A short catchy name for the pose/shot (in Thai).
