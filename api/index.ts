@@ -76,8 +76,9 @@ app.post("/api/generate-prompts", async (req, res) => {
     Generate 5 unique variations. For each variation, provide:
     1. name: A short catchy name for the pose/shot (in Thai).
     2. description: A brief description of the pose and focus (in Thai).
-    3. imagePrompt: A detailed prompt for an AI image generator (in English). Include lighting, camera angle, style, and photorealistic details. Do not include aspect ratio parameters here.
-    4. videoPrompt: A detailed prompt for an AI video generator (in English). Describe the camera movement and subject action.
+    3. dialogue: A short, appropriate sentence or phrase the character might be saying or a speech bubble content (in Thai).
+    4. imagePrompt: A detailed prompt for an AI image generator (in English). Include lighting, camera angle, style, and photorealistic details. If there is dialogue, describe it as a speech bubble or the character speaking. Do not include aspect ratio parameters here.
+    5. videoPrompt: A detailed prompt for an AI video generator (in English). Describe the camera movement and subject action, including the character speaking the dialogue if appropriate.
     
     Return the result as a JSON array of objects.
     `;
@@ -104,10 +105,11 @@ app.post("/api/generate-prompts", async (req, res) => {
                 properties: {
                   name: { type: Type.STRING },
                   description: { type: Type.STRING },
+                  dialogue: { type: Type.STRING },
                   imagePrompt: { type: Type.STRING },
                   videoPrompt: { type: Type.STRING }
                 },
-                required: ["name", "description", "imagePrompt", "videoPrompt"]
+                required: ["name", "description", "dialogue", "imagePrompt", "videoPrompt"]
               }
             }
           }

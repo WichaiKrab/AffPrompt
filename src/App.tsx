@@ -5,6 +5,7 @@ import { Toaster, toast } from 'react-hot-toast';
 interface PromptResult {
   name: string;
   description: string;
+  dialogue: string;
   imagePrompt: string;
   videoPrompt: string;
 }
@@ -166,7 +167,7 @@ export default function App() {
     document.body.removeChild(textArea);
   };
 
-  const handlePromptChange = (index: number, type: 'imagePrompt' | 'videoPrompt', value: string) => {
+  const handlePromptChange = (index: number, type: 'imagePrompt' | 'videoPrompt' | 'dialogue', value: string) => {
     const newResults = [...results];
     newResults[index][type] = value;
     setResults(newResults);
@@ -177,7 +178,8 @@ export default function App() {
     
     results.forEach((res, idx) => {
       content += `--- Option ${idx + 1}: ${res.name} ---\n`;
-      content += `Description: ${res.description}\n\n`;
+      content += `Description: ${res.description}\n`;
+      content += `Dialogue: ${res.dialogue}\n\n`;
       content += `Image Prompt:\n${res.imagePrompt}\n\n`;
       content += `Video Prompt:\n${res.videoPrompt}\n\n`;
       content += `----------------------------------------\n\n`;
@@ -582,9 +584,16 @@ export default function App() {
               <div className="w-full md:w-2/3 p-6 md:p-8 bg-white">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-slate-800 mb-2">{results[activeTab].name}</h2>
-                  <p className="text-slate-600 bg-slate-100 inline-block px-3 py-1 rounded-lg text-sm font-medium border border-slate-200">
-                    โฟกัส: {results[activeTab].description}
-                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <p className="text-slate-600 bg-slate-100 inline-block px-3 py-1 rounded-lg text-sm font-medium border border-slate-200">
+                      โฟกัส: {results[activeTab].description}
+                    </p>
+                    {results[activeTab].dialogue && (
+                      <p className="text-indigo-600 bg-indigo-50 inline-block px-3 py-1 rounded-lg text-sm font-bold border border-indigo-100">
+                        คำพูด: "{results[activeTab].dialogue}"
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-6">
