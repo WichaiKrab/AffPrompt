@@ -134,37 +134,4 @@ app.post("/api/generate-prompts", async (req, res) => {
   }
 });
 
-app.post("/api/generate-image", async (req, res) => {
-  try {
-    const { prompt, aspectRatio } = req.body;
-    const ai = new GoogleGenAI({ apiKey: getRandomApiKey() });
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: prompt,
-      config: {
-        imageConfig: {
-          aspectRatio: aspectRatio as any,
-        }
-      }
-    });
-    
-    let imageUrl = '';
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        break;
-      }
-    }
-    
-    if (imageUrl) {
-      res.json({ imageUrl });
-    } else {
-      throw new Error("No image generated");
-    }
-  } catch (error: any) {
-    console.error("Image generation error:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
-  }
-});
-
 export default app;

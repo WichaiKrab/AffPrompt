@@ -49,9 +49,6 @@ export default function App() {
   const [results, setResults] = useState<PromptResult[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [generatedMedia, setGeneratedMedia] = useState<{
-    [key: number]: { image?: string, imageLoading?: boolean }
-  }>({});
 
   useEffect(() => {
     // History is now only kept in memory (state) and resets on refresh.
@@ -81,7 +78,6 @@ export default function App() {
     setActiveTab(0);
     setFormData({ ...formData, faceImage: null, category: '', customCategory: '', productDetail: '', style: 'Photorealistic (ภาพสมจริง)', setting: '', vibe: '', negativePrompt: '' });
     setResults([]);
-    setGeneratedMedia({});
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,7 +128,6 @@ export default function App() {
       const posesWithAR = await response.json();
 
       setResults(posesWithAR);
-      setGeneratedMedia({});
       toast.success("สร้าง Prompt สำเร็จ!");
       
       // Save to history in memory only
@@ -151,33 +146,6 @@ export default function App() {
       toast.error(`เกิดข้อผิดพลาด: ${error.message || "กรุณาลองใหม่อีกครั้ง"}`);
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const generateImagePreview = async (index: number, prompt: string) => {
-    setGeneratedMedia(prev => ({ ...prev, [index]: { ...prev[index], imageLoading: true } }));
-    try {
-      const response = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, aspectRatio: formData.aspectRatio })
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate image");
-      }
-
-      const data = await response.json();
-      
-      if (data.imageUrl) {
-        setGeneratedMedia(prev => ({ ...prev, [index]: { ...prev[index], image: data.imageUrl, imageLoading: false } }));
-      } else {
-        throw new Error("No image generated");
-      }
-    } catch (error) {
-      console.error("Image generation error:", error);
-      toast.error("เกิดข้อผิดพลาดในการสร้างรูปภาพพรีวิว");
-      setGeneratedMedia(prev => ({ ...prev, [index]: { ...prev[index], imageLoading: false } }));
     }
   };
 
@@ -627,14 +595,6 @@ export default function App() {
                         <ImageIcon className="w-5 h-5" />
                         พรอมต์รูปภาพ (แก้ไขได้)
                       </div>
-                      <button 
-                        onClick={() => generateImagePreview(activeTab, results[activeTab].imagePrompt)}
-                        disabled={generatedMedia[activeTab]?.imageLoading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                      >
-                        {generatedMedia[activeTab]?.imageLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                        สร้างพรีวิวรูปภาพ
-                      </button>
                     </div>
                     <div className="relative mb-4">
                       <textarea 
@@ -649,11 +609,6 @@ export default function App() {
                         {copiedType === 'image' ? <><Check className="w-3 h-3" /> คัดลอกแล้ว</> : <><Copy className="w-3 h-3" /> คัดลอกพรอมต์</>}
                       </button>
                     </div>
-                    {generatedMedia[activeTab]?.image && (
-                      <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden bg-white p-2">
-                        <img src={generatedMedia[activeTab].image} alt="Generated Preview" className="w-full max-h-[400px] object-contain rounded" />
-                      </div>
-                    )}
                   </div>
 
                   {/* Video Prompt */}
