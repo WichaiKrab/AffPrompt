@@ -146,9 +146,9 @@ export default function App() {
 
       setStep(3);
       setActiveTab(0);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating prompts:", error);
-      toast.error("เกิดข้อผิดพลาดในการสร้าง Prompt กรุณาลองใหม่อีกครั้ง");
+      toast.error(`เกิดข้อผิดพลาด: ${error.message || "กรุณาลองใหม่อีกครั้ง"}`);
     } finally {
       setIsGenerating(false);
     }
