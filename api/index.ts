@@ -84,7 +84,7 @@ app.post("/api/generate-prompts", async (req, res) => {
     const apiKey = getRandomApiKey();
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
+      model: "gemini-3-flash-preview",
       contents: promptText,
       config: {
         responseMimeType: "application/json",
